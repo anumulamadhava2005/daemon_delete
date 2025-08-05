@@ -1,10 +1,104 @@
 import { useState } from 'react';
 import { Moon, Sun, LogOut, Trash2 } from 'lucide-react';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, signOut as firebaseSignOut } from 'firebase/auth';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { initializeApp } from 'firebase/app'; 
+import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
+import { getFirestore, collection, addDoc, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
+// Replacing your custom components with simplified versions
+function Button({ children, onClick, variant = "default", isDarkTheme, ...props }) {
+  const variantClasses = {
+    default: isDarkTheme
+      ? 'bg-white text-black hover:bg-gray-300'
+      : 'bg-black text-white hover:bg-gray-800',
+    outline: isDarkTheme
+      ? 'border border-gray-500 text-white hover:bg-gray-700'
+      : 'border border-gray-300 text-black hover:bg-gray-300',
+    destructive: 'bg-red-500 text-white hover:bg-red-600',
+  };
 
-// Firebase config (Consider moving to .env for production)
+  return (
+    <button
+      className={`px-4 py-2 rounded ${variantClasses[variant]}`}
+      onClick={onClick}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Input({ id, type, value, onChange, isDarkTheme, ...props }) {
+  return (
+    <input
+      id={id}
+      type={type}
+      value={value}
+      onChange={onChange}
+      className={`w-full p-2 rounded ${
+        isDarkTheme ? 'bg-gray-800 text-white border-gray-600' : 'bg-white text-black border-gray-300'
+      }`}
+      {...props}
+    />
+  );
+}
+
+function Label({ htmlFor, children, isDarkTheme }) {
+  return (
+    <label
+      htmlFor={htmlFor}
+      className={`block ${isDarkTheme ? 'text-white' : 'text-black'}`}
+    >
+      {children}
+    </label>
+  );
+}
+
+function Switch({ checked, onCheckedChange, isDarkTheme }) {
+  return (
+    <div className="flex items-center">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onCheckedChange(e.target.checked)}
+        className="w-6 h-6 cursor-pointer"
+      />
+      <span className="ml-2">
+        {isDarkTheme ? (
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            className="w-6 h-6 text-white"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 3v1m0 16v1m8.66-9.34h-1M4.34 12h-1m15.02 5.66l-.71-.71m-12.02 0l-.71.71m12.02-12.02l-.71-.71m-12.02 0l-.71.71M16 12a4 4 0 11-8 0 4 4 0 018 0z"
+            />
+          </svg>
+        ) : (
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            className="w-6 h-6 text-black"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 3v1m0 16v1m8.66-9.34h-1M4.34 12h-1m15.02 5.66l-.71-.71m-12.02 0l-.71.71m12.02-12.02l-.71-.71m-12.02 0l-.71.71M16 12a4 4 0 11-8 0 4 4 0 018 0z"
+            />
+          </svg>
+        )}
+      </span>
+    </div>
+  );
+}
+
+
 const firebaseConfig = {
   apiKey: "AIzaSyDojFudKt9k-cLmpzFKDZdU7XLkUHgPxx8",
   authDomain: "instagram-clone-ab65f.firebaseapp.com",
@@ -16,220 +110,144 @@ const firebaseConfig = {
   measurementId: "G-S91WM03QR4"
 };
 
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
 const db = getFirestore(app);
+const auth = getAuth(app); // Initialize auth instance with the app  
 
-// UI Components (Consider moving to a separate file)
-function Button({ children, onClick, variant = "default", disabled, className = "", ...props }) {
-  const variantClasses = {
-    default: 'bg-black text-white hover:bg-gray-800 disabled:bg-gray-400',
-    outline: 'border border-gray-300 text-black hover:bg-gray-100 disabled:bg-gray-100 disabled:text-gray-400',
-    destructive: 'bg-red-500 text-white hover:bg-red-600 disabled:bg-red-300',
-  };
-  return (
-    <button
-      className={`px-4 py-2 rounded transition ${variantClasses[variant]} ${className}`}
-      onClick={onClick}
-      disabled={disabled}
-      {...props}
-    >
-      {children}
-    </button>
-  );
-}
 
-function Input({ id, label, type, value, onChange, required, disabled, className = "", ...props }) {
-  return (
-    <div className="mb-4">
-      <label htmlFor={id} className="block mb-1 text-sm font-medium">
-        {label}
-      </label>
-      <input
-        id={id}
-        type={type}
-        value={value}
-        onChange={onChange}
-        required={required}
-        disabled={disabled}
-        className={`w-full p-2 border rounded transition ${className}`}
-        {...props}
-      />
-    </div>
-  );
-}
-
-function Switch({ checked, onChange }) {
-  return (
-    <label className="flex items-center cursor-pointer">
-      <div className="relative">
-        <input
-          type="checkbox"
-          checked={checked}
-          onChange={onChange}
-          className="sr-only"
-        />
-        <div className={`block w-10 h-6 rounded-full transition ${checked ? 'bg-gray-800' : 'bg-gray-300'}`}></div>
-        <div className={`absolute left-1 top-1 w-4 h-4 rounded-full transition ${checked ? 'translate-x-4 bg-white' : 'bg-white'}`}></div>
-      </div>
-    </label>
-  );
-}
-
-// Custom hook for auth logic
-function useAuth() {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  const signIn = async (email, password, username) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const auth1 = await signInWithEmailAndPassword(auth, email, password);
-      console.log(auth1)
-      const userDoc = await getDoc(doc(db, 'usersList', username));
-      if (userDoc.exists()) {
-        setUser(userDoc.data());
-      } else {
-        setError('User document not found');
-      }
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const signOut = async () => {
-    setLoading(true);
-    try {
-      await firebaseSignOut(auth);
-      setUser(null);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return { user, loading, error, signIn, signOut };
-}
-
-// Main Component
-export default function SignIn() {
+const SignIn = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
+  const [status, setStatus] = useState('');
   const [isDarkTheme, setIsDarkTheme] = useState(false);
-  const { user, loading, error, signIn, signOut } = useAuth();
+  const [userData, setUserData] = useState(null);
 
-  const handleSubmit = async (e) => {
+  const handleSignIn = async (e) => {
     e.preventDefault();
-    await signIn(email, password, username);
+
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      // Signed in
+      const user = userCredential.user;
+      setStatus('Sign in successful!');
+      console.log('User:', user);
+      // Redirect or perform other actions after successful sign-in
+      const userDoc = await getDoc(doc(db, 'usersList', username));
+      if (userDoc.exists()) {
+        setUserData(userDoc.data());
+      } else {
+        console.error('No such user document!');
+      }
+    } catch (error) {
+      const errorCode = error.code;
+      const errorMessage = error.message;
+      console.error('Error signing in:', errorCode, errorMessage);
+      setStatus('Error signing in: ' + errorMessage);
+    }
   };
 
-  const handleSignOut = async () => {
-    await signOut();
+  const handleSignOut = () => {
+    setUserData(null);
     setEmail('');
     setPassword('');
     setUsername('');
+    setStatus('Signed out successfully!');
   };
 
   const handleDeleteUser = () => {
-    // NOTE: In a real app, you would call Firebase deleteUser here after reauthentication
-    handleSignOut();
+    setUserData(null);
+    setEmail('');
+    setPassword('');
+    setUsername('');
+    setStatus('User profile deleted!');
   };
 
-  const themeClass = isDarkTheme ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-900';
-  const inputClass = isDarkTheme ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300';
-
   return (
-    <div className={`min-h-screen flex items-center justify-center ${themeClass}`}>
-      <div className="w-full max-w-md p-8 rounded-xl shadow-md space-y-6 m-4">
-        <div className="flex justify-end items-center gap-2">
+    <div className={`min-h-screen flex items-center justify-center ${isDarkTheme ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-900'}`}>
+      <div className="w-full max-w-md space-y-8">
+        <div className="flex justify-end">
           <Switch
             checked={isDarkTheme}
-            onChange={() => setIsDarkTheme(!isDarkTheme)}
+            onCheckedChange={setIsDarkTheme}
+            isDarkTheme={isDarkTheme} // Pass theme to the Switch component
+            className="mr-2"
           />
-          {isDarkTheme ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+          {isDarkTheme ? <Moon className="h-5 w-5 text-white" /> : <Sun className="h-5 w-5 text-black" />}
         </div>
 
-        {!user ? (
+        {!userData ? (
           <>
             <h1 className="text-3xl font-bold text-center">Sign In</h1>
-            <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-              <Input
-                id="email"
-                label="Email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={loading}
-                className={inputClass}
-              />
-              <Input
-                id="password"
-                label="Password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={loading}
-                className={inputClass}
-              />
-              <Input
-                id="username"
-                label="Username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                disabled={loading}
-                className={inputClass}
-              />
-              <Button
-                type="submit"
-                disabled={loading}
-                className="w-full mt-2"
-              >
-                {loading ? 'Signing In...' : 'Sign In'}
+            <form onSubmit={handleSignIn} className="mt-8 space-y-6">
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="email" isDarkTheme={isDarkTheme}>Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    isDarkTheme={isDarkTheme} // Pass theme to the Input component
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="password" isDarkTheme={isDarkTheme}>Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    isDarkTheme={isDarkTheme} // Pass theme to the Input component
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="username" isDarkTheme={isDarkTheme}>Username</Label>
+                  <Input
+                    id="username"
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    required
+                    isDarkTheme={isDarkTheme} // Pass theme to the Input component
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+              <Button type="submit" isDarkTheme={isDarkTheme} className="w-full">
+                Sign In
               </Button>
             </form>
           </>
         ) : (
-          <div className="text-center space-y-4">
-            {user.imageUrl && (
-              <img src={user.imageUrl} alt="User" className="w-24 h-24 rounded-full mx-auto mb-4" />
-            )}
-            <h2 className="text-2xl font-bold">{user.username}</h2>
-            <p className="text-gray-500">{user.email}</p>
-            <div className="flex justify-center gap-4">
-              <Button
-                onClick={handleSignOut}
-                variant="outline"
-                disabled={loading}
-              >
+          <div className="text-center">
+            <img src={userData.imageUrl} alt="User" className="w-24 h-24 rounded-full mx-auto mb-4" />
+            <h2 className="text-2xl font-bold mb-2">{userData.username}</h2>
+            <p className={`text-gray-500 ${isDarkTheme ? 'dark:text-gray-400' : 'text-gray-500'}`}>{userData.email}</p>
+            <div className="space-x-4">
+              <Button onClick={handleSignOut} variant="outline" isDarkTheme={isDarkTheme}>
                 <LogOut className="mr-2 h-4 w-4" /> Sign Out
               </Button>
-              <Button
-                onClick={handleDeleteUser}
-                variant="destructive"
-                disabled={loading}
-              >
+              <Button onClick={handleDeleteUser} variant="destructive" isDarkTheme={isDarkTheme}>
                 <Trash2 className="mr-2 h-4 w-4" /> Delete Profile
               </Button>
             </div>
           </div>
         )}
 
-        {error && (
-          <p className={`mt-4 text-center ${isDarkTheme ? 'text-red-400' : 'text-red-600'}`}>
-            {error}
+        {status && (
+          <p className={`mt-4 text-center ${isDarkTheme ? 'text-green-400' : 'text-green-600'}`}>
+            {status}
           </p>
         )}
       </div>
     </div>
   );
 }
+
+export default SignIn;
